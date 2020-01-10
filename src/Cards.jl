@@ -2,7 +2,7 @@ module Cards
 
 export Suit, Card, Hand, ♣, ♢, ♡, ♠, .., deal, points
 
-import Base: *, |, &
+import Base: *, |, &, parse
 
 """
 Encode a suit as a 2-bit value (low bits of a `UInt8`):
@@ -208,6 +208,56 @@ function points(hand::Hand)
         p += (rank-10)*(card in hand)
     end
     return p
+end
+
+const UNICODE_OFFSETS = 
+    Dict([Suit(0) => 0x1F0D0,
+          Suit(1) => 0x1F0C0,
+          Suit(2) => 0x1F0B0,
+          Suit(3) => 0x1F0A0])
+
+# TODO: no reason jokers can’t be supported here
+"""
+Return the single unicode character corresponding to this card.
+"""
+function char(card)
+    rank = Cards.rank(card)
+    if rank < 2 || rank > 14
+        throw(ArgumentError("only ranks 2 through 14 (Ace) are supported"))
+    end
+    rank = mod(rank, 1:13)
+    if rank >= 12
+        rank += 1  # skip unicode knight
+    end
+    Char(UNICODE_OFFSETS[Cards.suit(card)] + rank)
+end
+
+const RANKS = Dict(c => i+1 for (i, c) in enumerate("23456789TJQKA"))
+# TODO: alternative suit characters unicode (white/black)
+const SUITS = Dict('C' => Suit(0), 'D' => Suit(1), 'H' => Suit(2), 'S' => Suit(3),
+                   '♣' => Suit(0), '♦' => Suit(1), '♥' => Suit(2), '♠' => Suit(3))
+const UNICODES = Dict(char(card) => card for card in deck)
+
+parse(::Type{Card}, c::Char) = UNICODES[c]
+function parse(::Type{Card}, str::AbstractString)
+    if length(str) == 1
+        return parse(Card, only(str))
+    elseif length(str) == 2
+        a, b = str
+        if haskey(RANKS, a) && haskey(SUITS, b)
+            return Card(RANKS[a], SUITS[b])
+        elseif haskey(SUITS, a) && haskey(RANKS, b)
+            return Card(RANKS[b], SUITS[a])
+        end
+    elseif length(str) == 3
+        a, b, c = str
+        if a == '1' && b == '0' && haskey(SUITS, c)
+            return Card(10, SUITS[c])
+        elseif haskey(SUITS, a) && b == '1' && c == '0'
+            return Card(10, SUITS[a])
+        end
+    end
+    throw(ArgumentError("could not parse card: $str"))
 end
 
 end # Cards
